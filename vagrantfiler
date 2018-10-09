@@ -1,0 +1,129 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# Specced for RCloud.
+
+# All Vagrant configuration is done below. The "2" in Vagrant.configure
+# configures the configuration version (we support older styles for
+# backwards compatibility). Please don't change it unless you know what
+# you're doing.
+Vagrant.configure("2") do |config|
+  # The most common configuration options are documented and commented below.
+  # For a complete reference, please see the online documentation at
+  # https://docs.vagrantup.com.
+
+  # Every Vagrant development environment requires a box. You can search for
+  # boxes at https://atlas.hashicorp.com/search.
+  config.vm.box = "ubuntu/trusty64"
+
+  # Disable automatic box update checking. If you disable this, then
+  # boxes will only be checked for updates when the user runs
+  # `vagrant box outdated`. This is not recommended.
+  config.vm.box_check_update = false
+
+  config.vm.hostname = "rcloud-dev"
+
+  # Create a forwarded port mapping which allows access to a specific port
+  # within the machine from a port on the host machine. In the example below,
+  # accessing "localhost:8080" will access port 80 on the guest machine.
+  # config.vm.network "forwarded_port", guest: 80, host: 8080
+
+  # Create a private network, which allows host-only access to the machine
+  # using a specific IP.
+  # config.vm.network "private_network", ip: "192.168.33.10"
+
+  # Create a public network, which generally matched to bridged network.
+  # Bridged networks make the machine appear as another physical device on
+  # your network.
+  # config.vm.network "public_network"
+
+  config.vm.network "private_network", type: "dhcp"
+  # Need to manage the hosts file to add in the real ip address, using
+  # vagrant-hostmanager for this:
+  #     (https://github.com/devopsgroup-io/vagrant-hostmanager)
+  # To install run vagrant plugin install vagrant-hostmanager
+  config.hostmanager.enabled = true
+  config.hostmanager.manage_host = true
+  config.hostmanager.manage_guest = true
+  config.hostmanager.ignore_private_ip = false
+  config.hostmanager.include_offline = true
+  config.hostmanager.ip_resolver = proc do |vm, resolving_vm|
+    if hostname = (vm.ssh_info && vm.ssh_info[:host])
+      `vagrant ssh -c "hostname -I"`.split()[1]
+    end
+  end
+  # Share an additional folder to the guest VM. The first argument is
+  # the path on the host to the actual folder. The second argument is
+  # the path on the guest to mount the folder. And the optional third
+  # argument is a set of non-required options.
+  config.vm.synced_folder "~/.ssh", "/keys"
+  ENV['LC_ALL']="en_US.UTF-8"
+  # Provider-specific configuration so you can fine-tune various
+  # backing providers for Vagrant. These expose provider-specific options.
+  # Example for VirtualBox:
+  #
+  config.vm.provider "virtualbox" do |vb|
+  #   # Display the VirtualBox GUI when booting the machine
+     vb.gui = true
+     vb.cpus = "4"
+  #
+  #   # Customize the amount of memory on the VM:
+     vb.memory = "8096"
+    vb.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
+    vb.customize ["modifyvm", :id, "--natdnsproxy1", "on"]
+    vb.customize ["modifyvm", :id, "--ioapic", "on"]
+  end
+  #
+  # View the documentation for the provider you are using for more
+  # information on available options.
+
+  # Define a Vagrant Push strategy for pushing to Atlas. Other push strategies
+  # such as FTP and Heroku are also available. See the documentation at
+  # https://docs.vagrantup.com/v2/push/atlas.html for more information.
+  # config.push.define "atlas" do |push|
+  #   push.app = "YOUR_ATLAS_USERNAME/YOUR_APPLICATION_NAME"
+  # end
+
+  # Adds the hostname of this machine into the hosts file
+  config.vm.provision :shell, inline: "sed -i'' 's/^127.0.0.1\\t#{config.vm.hostname}.*$//' /etc/hosts"
+  # Enable provisioning with a shell script. Additional provisioners such as
+  # Puppet, Chef, Ansible, Salt, and Docker are also available. Please see the
+  # documentation for more information about their specific syntax and use.
+  config.vm.provision "shell", inline: <<-SHELL
+sudo apt-get update
+
+sudo update-locale LANG=en_US.UTF-8
+
+sudo apt-get install -y gcc g++ gfortran libcairo-dev libreadline-dev libxt-dev libjpeg-dev \
+       libicu-dev libssl-dev libcurl4-openssl-dev subversion git automake make libtool \
+       libtiff-dev gettext redis-server rsync curl
+	   
+sudo echo 'deb https://<my.favorite.cran.mirror>/bin/linux/ubuntu xenial/' >> /etc/apt/sources.list.d/cran.list
+	   
+sudo apt-get install -y r-base-dev
+sudo apt-get install -y dos2unix
+
+cd /tmp 
+wget https://github.com/jgm/pandoc/releases/download/1.19.2.1/pandoc-1.19.2.1-1-amd64.deb
+sudo dpkg -i pandoc-1.19.2.1-1-amd64.deb
+
+cd /tmp
+wget https://download1.rstudio.org/rstudio-1.0.136-amd64.deb
+dpkg -i rstudio-1.0.136-amd64.deb
+
+sudo apt-get install -fy
+
+wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
+sudo apt-get update 
+sudo apt-get install -y google-chrome-stable
+
+sudo apt-get install -y nodejs nodejs-legacy
+
+sudo npm install --no-bin-links
+sudo npm install -g grunt-cli
+nodejs node_modules/node-sass/scripts/install.js
+npm rebuild --no-bin-links node-sass
+
+  SHELL
+end
